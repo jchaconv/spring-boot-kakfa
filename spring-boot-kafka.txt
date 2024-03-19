@@ -1,0 +1,610 @@
+
+
+****** Synchronous & Asynchronous *****
+
+* Synchronous Request & Response - Blocking
+    → Client idle(inactive) waiting for response
+    → Latency subject to chaining: response time depends on all blocking calls you have
+
+* Asynchronous Request & Response - Non Blocking 
+    → To reduce latency the client can do some other works until it awaits the response
+    → More complexity to match responses to requests and handling error responses
+
+* Event Driven Communication (also asynchronous)
+    → In this model the service doesn't expect the response, is only broadcasting events
+      via messages. It doesn't need to know if there is another service listening.
+      We don't need to know about other microservices and we have a very loosely coupled system.
+
+
+
+################################################################################################     
+
+****** Kafka & JMS & AMQP ******
+
+JMS provides two messaging models:
+
+    - Queue: Point to point
+        → we only have a producer and a consumer per message
+        → once a message is read by a consumer, it is removed from the queue
+        → no messages are lost because the queue retains messages if the consumer is not available
+    
+    - Topic - Publish/Subscribe
+        → can have multiple consumers for each message
+        → does not retain messages
+        → consumer isn't online when the message is recieved by the broker, consumer will never see the message
+        → messages easily be lost with this topic setup
+
+     - ActiveMQ has Virtual topics model
+        → which is a hybrid of queues and topics   
+        → not very clear (?)
+
+
+AMQP (Rabbit) JMS (ActiveMQ)
+
+    - it's more complex than JMS model
+
+ 
+Push vs Pull
+
+    Kafka uses a pull model. JMS and AMQP use a push model.
+
+    - Push:
+        → messages pushed to consumer inmediately
+        → the bigger problem with this model is when messages are being produced faster than the client can process them.
+        → consumer is responsible for handle the overload of messages and have system integrity.
+        → there is some backoff patterns that can help mitigage the consumer being overwhelmed, but these can be complicated.
+
+    - Pull:
+        → consumer polls for next messages
+        → a performance risk with this model is when there is no data and consumer continually pulls
+        → kafka implements mechanisms to handle this. Batching to improve efficiency
+        
+
+Kafka consumers poll the broker for messages.
+With the push model messages are sent to the client as soon as they are available
+
+
+Kafka messages are available until the topic retention period has elapsed and they
+are deleted from the topic at some point after this. Jms topics doesn't retain messages.
+
+
+Kafka broker implementation allows messages to be replayed from a given point in time.
+This is a feature of Kafka that allows consumers to poll a topic from a given point in time.
+This assumes the messages have not exceeded the retention period and been deleted
+
+
+Message ordering is guaranteed with Kafka in which scenario?
+- messages are written with keys ensuring related messages are sent to the same partition.
+By writing related messages to the same topic partition, Kafka is able to guarantee ordering
+
+
+Summary:
+
+* Push vs Pull
+* AMQP (Rabbit) JMS (ActiveMQ)
+* Queues & Topics (JMS)
+* Brokers & Exchange
+* Ordering
+* Message Retention
+
+
+
+
+################################################################################################     
+
+
+Kafka is:
+- fault tolerant
+- highly available
+- high throughput (processing)
+- highly scalable streaming platform
+
+
+Producer -> Sends to broker
+
+Broker -> Message store
+    * Topic -> Is a destination on the broker. It has partitions known as logs
+        * Log -> Is an append only structure, new events are added to the end of the log
+                 Retention depends on configuration
+
+    * Offset ->  
+
+Consumer -> pulls from broker
+
+Key concepts of Kafka:
+---------------------
+
+Producer
+Broker
+Consumer
+Topic
+Log
+Partition
+Offset
+Key
+Cluster
+Consumer Group
+Leader & Follower
+Replication
+
+
+Messages & Events:
+-----------------
+
+Message is something sent over async communication
+An Event is something that happened (ex: Order created)
+Requests & Commands are both asking for an action to occur (instructions events)
+    -> there's no guarantee that an action will be done when you send a command
+
+For example:
+
+The Message is the envelope and the letter can be an Event(a fact) or a Command/Request
+
+
+Kafka Message:
+-------------
+A message is a record that contains:
+
+- Key: Event metadata, key - value pair, enables event remain untainted(manipulated)
+
+- Header: default null, is optional and facilites guaranteed ordering
+
+- Payload (Value): Event, anything that represents max 1 mb
+
+- Payloads - what should be in there?
+    -> sensitive data, large events
+    -> sufficient data for consumers
+
+Zookeeper & Kraft:
+-----------------
+
+* Zookepeer * (DEPRECATED)
+
+Manages Kafka metada
+     - Brokers in Cluster
+     - Broker health
+     - Topic
+
+Limitations
+    - Huge administration costs
+    - Process Overheads
+    - Duplication: transfer of data between zookeper cluster and kafka cluster
+    - Latency
+    - Scalability
+
+
+* Kraft *
+    - Cluster management without external asistance
+    - Simplified Admin
+    - Internalisation of metadata
+    - Improves scalability
+
+
+
+
+Summary(Exam 2):
+
+- A producer sends messages to a topic that lives on the Kafka broker
+
+2. How many partitions are there in a topic?
+- A topic can have 1 or more partitions. The number of partitions a
+topic is created with should be carefully calculated in advance 
+
+3. What is the topic offset?
+- The las read position in a topic partition for a consumer
+
+- Consumers in a consumer group use the offset to determine from where
+they should read the next batch of messages
+
+4. Which of the following statements regarding consumer groups is true?
+
+- Only one consumer in the consumer group will consume a message
+- Each partition will be assigned to only one consumer in any one consumer
+  group so messages are not shared
+
+5. If a message is written to a topic with a key then which of the following is true?
+
+- It will be written to the same topic partition as other messages with the same key
+- By writing messages with the same key to the same topic partition, Kafka is able to 
+  guarantee their order
+
+6. Messages are replicated across broker nodes to ensure which of the following?
+
+- Resiliency: If a broker node fails, replicated messages are available on another node
+
+7. True or false?  Consumers only read messages from the lead partition
+
+- False: Consumers can read from the lead or any follower partition. Producers only write to 
+  the lead partition
+
+8. True or false?  A request/command indicates that a consuming service should do something,
+   while an event represents something that has happened
+
+- True: For example, a command might be called SendPayment, while an event indicating that
+  something has happened might be called PaymentSent
+
+9. What is not a standard part of a Kafka message?
+
+- Sequence number
+
+10. True or false?  It is better to send as much information in a message as possible so that
+    consumers now and in the future will have all the data they need
+
+- False: Large messages have an impact on infrastructure, as they require storage and use
+  network bandwidth. Messages should contain sufficient information for the consuming services
+  to process. Additionally care must be taken with including sensitive data such as
+  PII(Personal Identifiable Information) and PCI(Payment Card Industry) data.
+
+11. A null message key results in which of the following?
+
+- If a message is written to a topic without a message key and the partition to write to is
+not specified, then there is no guarantee which partition it will be written to.
+
+12. Adding a key to a message guarantees which of the following?
+
+- Ordering of messages with the same key
+- Using a message key is the way to guarantee ordering, as messages with the same key are
+  written to the same partition, and so consumed in order
+
+13. True or false?  KRaft is a replacement for Zookeeper
+
+- True: KRaft simplifies Kafka’s architecture by consolidating responsibility for metadata
+to within Kafka itself.
+
+14. What is KRaft not responsible for?
+
+- Message replication: KRaft is not responsible for replicating messages (data) between Kafka
+  broker nodes. That is managed by in-sync replicas.
+
+
+################################################################################################     
+
+Migration to Microservices - Steps, Tips and Patterns
+
+
+* Where to start the migration to microservices
+
+Big bang approach (worse approach)
+  - Map out the microservices boundaries
+  - Stop any development of new features
+
+It's the worse approach because:
+  - Too many cooks in the kitchen
+  - Hard to estimate the effort for large and ambigous projects
+  - High risk of abandonment
+  - Stopping development is detrimental to the business
+
+
+
+
+
+* Preparing for the migration
+
+
+* Execute the migration using the Strangler fig pattern
+
+
+* Tip to ensure smooth migration
+
+
+################################################################################################     
+                                    INSTALLING AND RUNNING KAFKA
+################################################################################################     
+
+
+* Installing Kafka:
+
+Ingresar al panel de Windows features y la opción "Windows Subsystem for Linux" debe estar activa
+
+Abrir PowerShell de windows como admin:
+
+wsl --status
+wsl --list
+wsl --update
+
+wsl --instal -d Ubuntu
+
+UNIX username: jchaconv
+password: dota2prime
+
+- Abrir la terminal de ubuntu, buscar en inicio
+
+sudo apt update
+sudo apt install openjdk-17-jdk
+java -version
+
+mkdir tools
+
+- Escoger el último binary de Scala (kafka download page) Mediante windows explorer copiar el archivo en la carpeta tools
+
+cd tools
+mkdir kafka
+cd kafka
+tar -xvf ../kafka_2.13-3.7.0.tgz
+
+ls
+cd kafka_2.13-3.7.0
+ls
+
+- Establecer un id al cluster mediante un env_variable, kafka provee un utilitario:
+
+KAFKA_CLUSTER_ID="$(bin/kafka-storage.sh random-uuid)"
+echo $KAFKA_CLUSTER_ID    -> some random alphanumeric value
+
+- Define message topics metadata location with default config:
+
+bin/kafka-storage.sh format -t $KAFKA_CLUSTER_ID -c config/kraft/server.properties
+
+If it's neccesary to modify the location then change it in properties file
+
+- Start the server
+
+bin/kafka-server-start.sh config/kraft/server.properties
+
+
+
+* Sending and Receiving
+
+note: "." and "_" is equal in Kafka
+
+Open 2 terminals, each one for consumer and producer
+
+- In consumer console:
+
+bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic my.first.topic
+
+-> a warn terminal message appears and indicates that our topic is not created
+
+- In producer console:
+
+bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic my.first.topic
+
+> my first message    ----> enter and the message appears in consumer console
+
+
+- Ctrl + c in both consoles to finish
+
+
+################################################################################################     
+                                    KAFKA COMMAND LINE TOOLS
+################################################################################################ 
+
+In the installation folder:
+
+pwd
+ls bin  ----> list of tools
+bin/kafka-console-consumer.sh --help     ---> return all the options available
+
+
+
+* Start / Stop Kafka Server
+
+bin/kafka-server-start.sh config/kraft/server.properties   ---> an active attach console
+
+In other window:
+bin/kafka-server-stop.sh   ---> the server is stoped
+
+
+
+* CLI Tools - Topic Tools
+
+bin/kafka-topics.sh --bootstrap-server localhost:9092 --list                                          ---> shows the topics
+
+bin/kafka-topics.sh --bootstrap-server localhost:9092 --create --topic my.second.topic                ---> create a new topic
+
+bin/kafka-topics.sh --bootstrap-server localhost:9092 --describe --topic my.second.topic              ---> shows information of the topic
+
+bin/kafka-topics.sh --bootstrap-server localhost:9092 --alter --topic my.second.topic --partitions 3   ---> modify the number of partitions
+
+bin/kafka-topics.sh --bootstrap-server localhost:9092 --delete --topic my.second.topic                  ---> to delete a topic 
+
+
+* Consumer Group CLI Tool
+
+bin/kafka-topics.sh --bootstrap-server localhost:9092 --create --topic cg.demo.topic --partitions 5     ---> create a new topic with five partitions
+
+bin/kafka-topics.sh --bootstrap-server localhost:9092 --describe --topic cg.demo.topic
+
+bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --list                                    ----> shows the consumer groups(in this case is empty)
+
+bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic cg.demo.topic --group my.first.consumer.group    ----> setup a new consumer-group when a consumer connects to a topic or partition
+
+bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --describe --group my.first.consumer.group   ----> shows the detail of the group
+
+
+bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic cg.demo.topic --group my.first.consumer.group     ---> execute this 2 times to setup two consumers listening for messages on the same topic
+
+
+bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --describe --group my.first.consumer.group     ----> shows that one of the consumer is listening to messages on partitions 1,2 and 3 and the other consumer is listening
+                                                                                                                    on partitions 4 and 5. This is called re-balancing(a process that is executed when a consumer is join or leave a CG
+                                                                                                                    or when number of partitions is change)                
+
+bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --describe --group my.first.consumer.group --state     ----> shows the state of the CG
+
+bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --describe --group my.first.consumer.group --members     ----> shows the consumers of a CG and partiions that consumers are consuming for
+
+
+
+################################################################################################     
+                                 CODING KAFKA WITH SPRING BOOT
+################################################################################################ 
+
+
+* Create the project
+
+https://start.spring.io/
+
+spring boot version: 3.2.3
+
+group: dev.kafka
+artifact: dispatch
+name: dispatch
+
+java version: 17
+
+dependencies:
+- lombok
+- spring for apache kafka
+
+
+Execute mvn clean install
+
+
+* Create OrderCreatedHandler and DispatchService and then execute commands in named consoles
+
+
+bin/kafka-server-start.sh config/kraft/server.properties
+
+
+In a second terminal:
+mvn spring-boot:run
+
+
+In a third terminal (producer):
+
+bin/kafka-console-producer.sh --topic order.created --bootstrap-server localhost:9092
+
+>test-message
+>
+
+---> check the application log and the log had been output
+
+
+* JSON Deserializer
+
+add jackson dependency to the pom.xml
+
+edit the methods of the handler and service to accept the class OrderCreated as a type
+
+comment the stringDeserializer and add some properties like:
+
+#to use JsonDeserializer and not the string one
+spring.kafka.consumer.properties.spring.deserializer.value.delegate.class=org.springframework.kafka.support.serializer.JsonDeserializer
+#to specify the object type of the message
+spring.kafka.consumer.properties.spring.json.value.default.type=com.microservice.kafkademo.dispatch.message.OrderCreated
+
+restart the application
+
+start the producer and send this:
+>{"orderId":"random-uuid-generated", "item":"item-1"}
+
+And then the event has been logged
+
+
+
+
+* Deserializer Error Handling
+
+
+send this in the producer console:
+>{"orderId":"123", "item":"invalid-1"}
+
+spring is unable to deserialize the message and the exception is thrown again and again
+also if I restart the application is the same problem because the topic is blocked and stopping other events to be consumed
+
+so we need to add a property in application.properties file:
+
+#to handle Serialization exceptions
+spring.kafka.consumer.value-deserializer=org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+
+
+restart the application and then we see the exception only once and the consumer is able to consume new events from the topic 
+
+send another valid message and it shows the correct log
+
+
+
+git clone https://github.com/jchaconv/spring-boot-kakfa.git
+
+
+
+
+################################################################################################     
+
+
+
+
+
+
+
+################################################################################################     
+
+
+
+
+
+
+
+################################################################################################     
+
+
+
+
+
+
+
+################################################################################################     
+
+
+
+
+
+
+
+################################################################################################     
+
+
+
+
+
+
+
+################################################################################################     
+
+
+
+
+
+
+
+################################################################################################     
+
+
+
+
+
+
+
+################################################################################################     
+
+
+
+
+
+
+
+################################################################################################     
+
+
+
+
+
+
+
+################################################################################################     
+
+
+
+
+
+
+
+################################################################################################     
+
+
+
+
+
+
+
+
