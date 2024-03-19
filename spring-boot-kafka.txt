@@ -275,9 +275,6 @@ It's the worse approach because:
   - Stopping development is detrimental to the business
 
 
-
-
-
 * Preparing for the migration
 
 
@@ -332,6 +329,8 @@ KAFKA_CLUSTER_ID="$(bin/kafka-storage.sh random-uuid)"
 echo $KAFKA_CLUSTER_ID    -> some random alphanumeric value
 
 - Define message topics metadata location with default config:
+
+rm -rf /tmp/kraft-combined-logs           ---> in case the existence id is different and represents conflicts
 
 bin/kafka-storage.sh format -t $KAFKA_CLUSTER_ID -c config/kraft/server.properties
 
@@ -407,11 +406,12 @@ bin/kafka-topics.sh --bootstrap-server localhost:9092 --describe --topic cg.demo
 
 bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --list                                    ----> shows the consumer groups(in this case is empty)
 
+(In a new console)
 bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic cg.demo.topic --group my.first.consumer.group    ----> setup a new consumer-group when a consumer connects to a topic or partition
 
 bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --describe --group my.first.consumer.group   ----> shows the detail of the group
 
-
+(On another console)
 bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic cg.demo.topic --group my.first.consumer.group     ---> execute this 2 times to setup two consumers listening for messages on the same topic
 
 
@@ -452,16 +452,19 @@ Execute mvn clean install
 
 * Create OrderCreatedHandler and DispatchService and then execute commands in named consoles
 
+=== Use Ubuntu console ===
 
+Start the server:
 bin/kafka-server-start.sh config/kraft/server.properties
 
+Check out the ip of the ubuntu terminal with: ip addr show
+then put it on the application.properties:
+spring.kafka.bootstrap-servers=172.18.214.147:9092
 
 In a second terminal:
 mvn spring-boot:run
 
-
 In a third terminal (producer):
-
 bin/kafka-console-producer.sh --topic order.created --bootstrap-server localhost:9092
 
 >test-message
@@ -476,47 +479,40 @@ add jackson dependency to the pom.xml
 
 edit the methods of the handler and service to accept the class OrderCreated as a type
 
-comment the stringDeserializer and add some properties like:
+- comment the stringDeserializer and add some properties like:
 
-#to use JsonDeserializer and not the string one
-spring.kafka.consumer.properties.spring.deserializer.value.delegate.class=org.springframework.kafka.support.serializer.JsonDeserializer
-#to specify the object type of the message
-spring.kafka.consumer.properties.spring.json.value.default.type=com.microservice.kafkademo.dispatch.message.OrderCreated
+spring.kafka.consumer.value-deserializer=org.springframework.kafka.support.serializer.JsonDeserializer
+spring.kafka.consumer.properties.spring.json.value.default.type=com.bbva.demokafka.dispatch.message.OrderCreated
 
-restart the application
+
+- restart the application
 
 start the producer and send this:
 >{"orderId":"random-uuid-generated", "item":"item-1"}
+{"orderId":"9084d899-8f62-479c-99b6-923db09c2ce4","item":"item-1"}
 
 And then the event has been logged
 
 
-
-
 * Deserializer Error Handling
 
-
 send this in the producer console:
->{"orderId":"123", "item":"invalid-1"}
+{"orderId":"123", "item":"invalid-1"}
 
 spring is unable to deserialize the message and the exception is thrown again and again
 also if I restart the application is the same problem because the topic is blocked and stopping other events to be consumed
 
-so we need to add a property in application.properties file:
+so we need to modify application.properties file:
 
+spring.kafka.consumer.value-deserializer=org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
 #to handle Serialization exceptions
 spring.kafka.consumer.value-deserializer=org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
 
-
-restart the application and then we see the exception only once and the consumer is able to consume new events from the topic 
+restart the application and then we see the exception only once and the consumer is able to consume new events from the topic
 
 send another valid message and it shows the correct log
 
-
-
-git clone https://github.com/jchaconv/spring-boot-kakfa.git
-
-
+{"orderId":"332", "item":"invalid-1"}
 
 
 ################################################################################################     
