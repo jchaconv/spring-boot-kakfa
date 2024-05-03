@@ -18,11 +18,11 @@ public class OrderCreatedHandler {
     /*@KafkaListener(
             id = "orderConsumerClient",
             topics = "order.created",
-            groupId = "dispatch.order.created.consumer"
+            groupId = "dispatch.order.created.consumer" //this is the consumer group id
     )
-    public void listen(String payload) {
+    public void listenStringPayload(String payload) {
         log.info("Received message :: payload : " + payload);
-        dispatchService.process(payload);
+        dispatchService.processStringPayload(payload);
     }*/
 
 
@@ -30,11 +30,16 @@ public class OrderCreatedHandler {
     @KafkaListener(
             id = "orderConsumerClient",
             topics = "order.created",
-            groupId = "dispatch.order.created.consumer"
+            groupId = "dispatch.order.created.consumer",
+            containerFactory = "kafkaListenerContainerFactory"
     )
-    public void listen(OrderCreated payload) {
+    public void listenJsonPayload(OrderCreated payload) {
         log.info("Received message :: payload : " + payload);
-        dispatchService.process(payload);
+        try {
+            dispatchService.processJsonPayload(payload);
+        } catch (Exception e) {
+            log.error("Processing failure", e);
+        }
     }
 
 

@@ -434,23 +434,22 @@ bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --describe --grou
 
 https://start.spring.io/
 
-spring boot version: 3.2.3
+spring boot version: 2.7.16
 
-group: dev.kafka
-artifact: dispatch
-name: dispatch
+group: com.bbva
+artifact: demo-kafka
+name: demo-kafka
 
-java version: 17
+java version: 11
 
 dependencies:
 - lombok
 - spring for apache kafka
 
+- add simple methods in OrderCreatedHandler (listenStringPayload) and DispatchService
+- add unit tests
 
-Execute mvn clean install
-
-
-* Create OrderCreatedHandler and DispatchService and then execute commands in named consoles
+Execute mvn clean install → Build Success
 
 === Use Ubuntu console ===
 
@@ -458,6 +457,7 @@ Start the server:
 bin/kafka-server-start.sh config/kraft/server.properties
 
 Check out the ip of the ubuntu terminal with: ip addr show
+
 then put it on the application.properties:
 spring.kafka.bootstrap-servers=172.18.214.147:9092
 
@@ -466,7 +466,6 @@ mvn spring-boot:run
 
 In a third terminal (producer):
 bin/kafka-console-producer.sh --topic order.created --bootstrap-server localhost:9092
-
 >test-message
 >
 
@@ -475,20 +474,18 @@ bin/kafka-console-producer.sh --topic order.created --bootstrap-server localhost
 
 * JSON Deserializer
 
-add jackson dependency to the pom.xml
+Add jackson dependency to the pom.xml
 
-edit the methods of the handler and service to accept the class OrderCreated as a type
+Add method to the handler and service to accept the class OrderCreated as a type
 
-- comment the stringDeserializer and add some properties like:
+- comment the stringDeserializer and add these properties:
 
 spring.kafka.consumer.value-deserializer=org.springframework.kafka.support.serializer.JsonDeserializer
 spring.kafka.consumer.properties.spring.json.value.default.type=com.bbva.demokafka.dispatch.message.OrderCreated
 
-
 - restart the application
 
 start the producer and send this:
->{"orderId":"random-uuid-generated", "item":"item-1"}
 {"orderId":"9084d899-8f62-479c-99b6-923db09c2ce4","item":"item-1"}
 
 And then the event has been logged
@@ -504,7 +501,6 @@ also if I restart the application is the same problem because the topic is block
 
 so we need to modify application.properties file:
 
-spring.kafka.consumer.value-deserializer=org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
 #to handle Serialization exceptions
 spring.kafka.consumer.value-deserializer=org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
 
@@ -514,12 +510,82 @@ send another valid message and it shows the correct log
 
 {"orderId":"332", "item":"invalid-1"}
 
+#################################################################################################################
 
-################################################################################################     
+* Spring Bean Configuration
+
+to move the deserialization configuration from properties to beans of spring context
+
+Create:
+- configuration/DispatchConfiguration
+
+ConcurrentKafkaListenerContainerFactory is the recommended implementation
+
+- modify properties file, we don't need the properties anymore except this:
+kafka.bootstrap-servers=172.18.214.147:9092         ------->  (without the prefix spring)
+
+- modify OrderCreatedHandler adding containerFactory property to the listener
+
+- run the application, send a message and that's it. The application log shows the correct deserialization of the kafka event
+
+#################################################################################################################
+
+* Note: Manual Topic Creation is the best practice for production environments in order to avoid typo mistakes.
+
+#################################################################################################################
+
+* Produce and Consume using CLI
+
+- Create OrderDispatched message and modify the DispatchConfiguration
+- Add logic in the DispatchService method to send the event
+
+NOTE: we made the send method synchronous with the get() option and we add the throw exception feature
+
+- Create a consumer console:
+bin/kafka-console-consumer.sh --topic order.dispatched --bootstrap-server localhost:9092    ---> now this is listening
+
+- In producer (--topic order.created)console send this:
+
+bin/kafka-console-producer.sh --topic order.created --bootstrap-server localhost:9092
+
+{"orderId":"9084d899-8f62-479c-99b6-923db09c2ce4","item":"item-6"}
+
+{"orderId":"9084d899-8f62-479c-99b6-923db09c2ce4","item":"item-4"}
+
+- We received the order dispatched event in the consumer console
 
 
+- This is the end to end flow:
+
+            order.created                   order.dispatched
+Console    --------------->     Dispatch   --------------------->  console
+Producer                                                           consumer
 
 
+Exam note: The Production environment, and typically most remote environments, should not have automatic topic
+creation enabled. Topics should be created as part of the pipeline. This ensures incorrect or unwanted topics
+are not created in error due to an application bug
+
+################################################################################################
+                                 INTEGRATION TESTS
+################################################################################################
+
+Integration tests are good to demonstrate that our connections and way of manage responses for external sources like kafka are correct.
+In this tests we can create embedded instances of Kafka(consumers, producers)
+
+Create these files:
+
+- OrderDispatchIntegrationTest
+- application-test.properties
+
+Add this dependency to await for a condition in a set of period (great tool when testing async flow):
+
+<dependency>
+    <groupId>org.awaitility</groupId>
+	<artifactId>awaitility</artifactId>
+	<version>4.2.0</version>
+	<scope>test</scope>  ---> to be not included in the production build
+</dependency>
 
 
 
